@@ -25,10 +25,11 @@ Run from this chart root directory.
 ./deploy.sh \
   --flex-docs-path /mnt/Flexcache_Site2 \
   --gateway-host my-rag-app.45.63.79.40.nip.io \
-  --qdrant-url http://45.63.92.22:6333/
+  --qdrant-url http://45.63.92.22:6333/ \
+  --llm-gpus 4
 ```
 
-Default LLM profile in `values.yaml` is now `llama-3-3-70b-instruct` with `llm.gpus=4`.
+Default LLM profile in `values.yaml` is `llama-3-3-70b-instruct`; override GPU count with `--llm-gpus`.
 
 ### 2) Deploy using fallback Qdrant service (in-cluster)
 
@@ -60,27 +61,14 @@ Optional namespace purge:
 ./clean.sh --purge-namespace
 ```
 
-### 5) Deploy with MinIO sync in deploy.sh
+### 5) Deploy with generic local model-cache mount
 
 ```bash
 ./deploy.sh \
   --flex-docs-path /mnt/Flexcache_Site2 \
   --gateway-host my-rag-app.45.63.79.40.nip.io \
-  --qdrant-url http://45.63.92.22:6333/ \
-  --minio-endpoint https://my-rag-app-minio-api.45.63.79.40.nip.io \
-  --minio-bucket rag-docs \
-  --minio-access-key '<accesskey>' \
-  --minio-secret-key '<secretkey>' \
-  --minio-prefix rag
-```
-
-### 6) Deploy with generic local model-cache mount
-
-```bash
-./deploy.sh \
-  --flex-docs-path /mnt/Flexcache_Site2 \
-  --gateway-host my-rag-app.45.63.79.40.nip.io \
-  --model-cache-path /path/to/model-cache
+  --model-cache-path /path/to/model-cache \
+  --llm-gpus 4
 ```
 
 You can also select a different values file:
@@ -89,12 +77,7 @@ You can also select a different values file:
 ./deploy.sh --values-file values.yaml --flex-docs-path /mnt/Flexcache_Site2
 ```
 
-### 7) MinIO console and API URLs
-
-- Console: `https://my-rag-app-minio-console.45.63.79.40.nip.io`
-- API: `https://my-rag-app-minio-api.45.63.79.40.nip.io`
-
-### 8) App and Qdrant URLs
+### 6) App and Qdrant URLs
 
 - App UI/API: `https://my-rag-app.45.63.79.40.nip.io`
 - Documents API: `https://my-rag-app.45.63.79.40.nip.io/documents`

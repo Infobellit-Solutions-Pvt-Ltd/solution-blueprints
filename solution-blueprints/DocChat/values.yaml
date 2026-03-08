@@ -58,17 +58,6 @@ readinessProbe:
 kaiwo:
   enabled: false
 
-ingress:
-  enabled: false
-  className: ""
-  annotations: {}
-  hosts:
-    - host: t2yd-qdrant.45.63.79.40.nip.io
-      paths:
-        - path: /
-          pathType: Prefix
-  tls: []
-
 gatewayRoute:
   enabled: true
   gateway:
@@ -159,38 +148,6 @@ qdrant:
   gatewayRoute:
     enabled: true
     host: ""
-    gateway:
-      name: https
-      namespace: kgateway-system
-
-# -- Values for bundled MinIO object storage used to persist original documents --
-minio:
-  enabled: true
-  existingService: ""
-  image:
-    repository: "minio/minio"
-    tag: "RELEASE.2025-09-07T16-13-09Z"
-  service:
-    apiPort: 9000
-    consolePort: 9001
-  auth:
-    existingSecret: ""
-    accessKey: "minioadmin"
-    secretKey: "minioadmin123"
-  bucket: "rag-docs"
-  region: "us-east-1"
-  prefix: "rag"
-  persistence:
-    enabled: true
-    size: 25Gi
-    storageClassName: mlstorage
-  resources:
-    requests: { cpu: "200m", memory: "512Mi" }
-    limits: { cpu: "1", memory: "2Gi" }
-  gatewayRoute:
-    enabled: true
-    apiHost: ""
-    consoleHost: ""
     gateway:
       name: https
       namespace: kgateway-system

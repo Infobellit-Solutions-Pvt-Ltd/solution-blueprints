@@ -59,28 +59,6 @@ Helper for container environment variables.
 - name: EMBEDDING_OPENAI_URL
   {{ $sub := dict "Values" (merge (dict) .Values.embedding) "Release" .Release "Chart" (dict "Name" "embedding") }}
   value: {{ include "aim-embedding.url" $sub }}/v1
-{{- if .Values.minio.enabled }}
-- name: MINIO_ENABLED
-  value: "true"
-- name: MINIO_ENDPOINT
-  value: {{ include "aim-minio.url" . | quote }}
-- name: MINIO_BUCKET
-  value: {{ .Values.minio.bucket | quote }}
-- name: MINIO_REGION
-  value: {{ .Values.minio.region | quote }}
-- name: MINIO_PREFIX
-  value: {{ .Values.minio.prefix | quote }}
-- name: MINIO_ACCESS_KEY
-  valueFrom:
-    secretKeyRef:
-      name: {{ include "aim-minio.secretName" . }}
-      key: accesskey
-- name: MINIO_SECRET_KEY
-  valueFrom:
-    secretKeyRef:
-      name: {{ include "aim-minio.secretName" . }}
-      key: secretkey
-{{- end }}
 {{- range $key, $value := .Values.env_vars }}
 - name: {{ $key }}
   value: {{ tpl $value $ | quote }}
@@ -103,33 +81,6 @@ http://{{ include "aim-qdrant.release.fullname" . }}:{{ .Values.qdrant.deploymen
 {{- else -}}
 http://{{ .Values.qdrant.existingService }}
 {{- end -}}
-{{- end -}}
-{{- end -}}
-
-{{/*
-MinIO naming and URL helpers.
-*/}}
-{{- define "aim-minio.release.fullname" -}}
-{{- printf "%s-minio" .Release.Name | trunc 63 | trimSuffix "-" -}}
-{{- end -}}
-
-{{- define "aim-minio.secretName" -}}
-{{- if .Values.minio.auth.existingSecret -}}
-{{ .Values.minio.auth.existingSecret }}
-{{- else -}}
-{{ include "aim-minio.release.fullname" . }}
-{{- end -}}
-{{- end -}}
-
-{{- define "aim-minio.url" -}}
-{{- if .Values.minio.existingService -}}
-{{- if hasPrefix "http" .Values.minio.existingService -}}
-{{ .Values.minio.existingService }}
-{{- else -}}
-http://{{ .Values.minio.existingService }}
-{{- end -}}
-{{- else -}}
-http://{{ include "aim-minio.release.fullname" . }}:{{ .Values.minio.service.apiPort }}
 {{- end -}}
 {{- end -}}
 

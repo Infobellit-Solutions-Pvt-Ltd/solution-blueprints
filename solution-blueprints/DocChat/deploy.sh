@@ -13,12 +13,7 @@ VALUES_FILE="values.yaml"
 MODEL_CACHE_PATH=""
 SKIP_DEPENDENCY_UPDATE="false"
 GATEWAY_HOST="${GATEWAY_HOST:-}"
-MINIO_ENDPOINT="${MINIO_ENDPOINT:-}"
-MINIO_BUCKET="${MINIO_BUCKET:-}"
-MINIO_ACCESS_KEY="${MINIO_ACCESS_KEY:-}"
-MINIO_SECRET_KEY="${MINIO_SECRET_KEY:-}"
-MINIO_REGION="${MINIO_REGION:-us-east-1}"
-MINIO_PREFIX="${MINIO_PREFIX:-}"
+LLM_GPUS=""
 
 APP_NAME=""
 APP_POD=""
@@ -43,12 +38,7 @@ Options:
   --values-file <file>      Helm values file to use (default: $VALUES_FILE)
   --model-cache-path <path> Absolute local model-cache path for LLM hostPath mount (optional)
   --gateway-host <host>     Gateway HTTPRoute hostname override (optional)
-  --minio-endpoint <url>    MinIO/S3 endpoint URL (optional)
-  --minio-bucket <name>     MinIO bucket name (optional; enables sync when set)
-  --minio-access-key <key>  MinIO access key (optional; can use env MINIO_ACCESS_KEY)
-  --minio-secret-key <key>  MinIO secret key (optional; can use env MINIO_SECRET_KEY)
-  --minio-region <region>   MinIO region (default: $MINIO_REGION)
-  --minio-prefix <prefix>   Bucket prefix (default: <release>/<namespace>)
+  --llm-gpus <count>        Override llm.gpus Helm value (positive integer, optional)
   --skip-dependency-update  Skip 'helm dependency update'
   --help                    Show this help
 
@@ -56,7 +46,7 @@ Examples:
   $SCRIPT_NAME --flex-docs-path /mnt/netapp/rag_docs
   $SCRIPT_NAME --namespace rag --release t2yd --flex-docs-path /netapp/docs --qdrant-url http://10.0.0.15:6333
   $SCRIPT_NAME --flex-docs-path /mnt/Flexcache_Site2 --model-cache-path /mnt/model-cache
-  $SCRIPT_NAME --flex-docs-path /mnt/Flexcache_Site2 --minio-endpoint http://minio.local:9000 --minio-bucket rag-docs --minio-access-key minio --minio-secret-key minio123
+  $SCRIPT_NAME --flex-docs-path /mnt/Flexcache_Site2 --llm-gpus 4
 EOF
 }
 
@@ -84,6 +74,12 @@ trap cleanup EXIT
 
 require_cmd() {
   command -v "$1" >/dev/null 2>&1 || fail "Missing required command: $1"
+}
+
+validate_positive_int() {
+  local raw="$1"
+  local arg_name="$2"
+  [[ "$raw" =~ ^[1-9][0-9]*$ ]] || fail "$arg_name must be a positive integer"
 }
 
 parse_args() {
@@ -134,34 +130,10 @@ parse_args() {
         GATEWAY_HOST="$2"
         shift 2
         ;;
-      --minio-endpoint)
-        [[ $# -ge 2 ]] || fail "--minio-endpoint requires a value"
-        MINIO_ENDPOINT="$2"
-        shift 2
-        ;;
-      --minio-bucket)
-        [[ $# -ge 2 ]] || fail "--minio-bucket requires a value"
-        MINIO_BUCKET="$2"
-        shift 2
-        ;;
-      --minio-access-key)
-        [[ $# -ge 2 ]] || fail "--minio-access-key requires a value"
-        MINIO_ACCESS_KEY="$2"
-        shift 2
-        ;;
-      --minio-secret-key)
-        [[ $# -ge 2 ]] || fail "--minio-secret-key requires a value"
-        MINIO_SECRET_KEY="$2"
-        shift 2
-        ;;
-      --minio-region)
-        [[ $# -ge 2 ]] || fail "--minio-region requires a value"
-        MINIO_REGION="$2"
-        shift 2
-        ;;
-      --minio-prefix)
-        [[ $# -ge 2 ]] || fail "--minio-prefix requires a value"
-        MINIO_PREFIX="$2"
+      --llm-gpus)
+        [[ $# -ge 2 ]] || fail "--llm-gpus requires a value"
+        validate_positive_int "$2" "--llm-gpus"
+        LLM_GPUS="$2"
         shift 2
         ;;
       --skip-dependency-update)
@@ -231,6 +203,9 @@ deploy_chart() {
   fi
   if [[ -n "$GATEWAY_HOST" ]]; then
     helm_args+=(--set "gatewayRoute.host=$GATEWAY_HOST")
+  fi
+  if [[ -n "$LLM_GPUS" ]]; then
+    helm_args+=(--set "llm.gpus=$LLM_GPUS")
   fi
 
   if [[ "$SKIP_DEPENDENCY_UPDATE" != "true" ]]; then
@@ -329,33 +304,6 @@ sync_docs_from_flex() {
   [[ "$DOC_COUNT" -gt 0 ]] || fail "No .pdf or .txt files found in ${FLEX_TARGET}:${FLEX_DOCS_PATH}"
 
   log "Fetched $DOC_COUNT document(s) from flex"
-}
-
-sync_docs_to_minio() {
-  if [[ -z "$MINIO_BUCKET" ]]; then
-    return 0
-  fi
-  [[ -n "$MINIO_ENDPOINT" ]] || fail "--minio-endpoint is required when --minio-bucket is set"
-  [[ -n "$MINIO_ACCESS_KEY" ]] || fail "--minio-access-key is required when --minio-bucket is set"
-  [[ -n "$MINIO_SECRET_KEY" ]] || fail "--minio-secret-key is required when --minio-bucket is set"
-  require_cmd aws
-
-  local prefix="${MINIO_PREFIX:-${RELEASE}/${NAMESPACE}}"
-  local target="s3://${MINIO_BUCKET}/${prefix%/}/"
-
-  log "Syncing staged docs to MinIO: ${target}"
-  AWS_ACCESS_KEY_ID="$MINIO_ACCESS_KEY" \
-  AWS_SECRET_ACCESS_KEY="$MINIO_SECRET_KEY" \
-  AWS_DEFAULT_REGION="$MINIO_REGION" \
-    aws --endpoint-url "$MINIO_ENDPOINT" s3 mb "s3://${MINIO_BUCKET}" >/dev/null 2>&1 || true
-
-  AWS_ACCESS_KEY_ID="$MINIO_ACCESS_KEY" \
-  AWS_SECRET_ACCESS_KEY="$MINIO_SECRET_KEY" \
-  AWS_DEFAULT_REGION="$MINIO_REGION" \
-    aws --endpoint-url "$MINIO_ENDPOINT" s3 sync "$DOC_STAGE_RUN/" "$target" \
-      --exclude "*" --include "*.pdf" --include "*.txt"
-
-  MINIO_TARGET="$target"
 }
 
 find_app_pod() {
@@ -460,12 +408,12 @@ Deployment completed.
   Values File:       $VALUES_FILE
   App Service:       $APP_NAME
   Qdrant:            $qdrant_mode
+  LLM GPUs:          ${LLM_GPUS:-from values.yaml}
   Model Cache Path:  ${MODEL_CACHE_PATH:-disabled}
   Gateway Host:      ${GATEWAY_HOST:-from values.yaml}
   Flex Docs Source:  ${FLEX_TARGET}:${FLEX_DOCS_PATH}
   Local Stage Dir:   $DOC_STAGE_RUN
   Indexed Files:     $DOC_COUNT
-  #MinIO Sync:        ${MINIO_TARGET:-disabled}
 EOF
 }
 
@@ -486,7 +434,6 @@ main() {
   wait_for_llm_if_present
   start_port_forward_and_wait_health
   sync_docs_from_flex
-  sync_docs_to_minio
   find_app_pod
   copy_docs_to_pod_and_build_payload
   index_documents

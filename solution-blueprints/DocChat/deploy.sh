@@ -5,7 +5,7 @@ SCRIPT_NAME="$(basename "$0")"
 
 RELEASE="my-rag-app"
 NAMESPACE="my-namespace"
-QDRANT_URL="http://45.63.92.22:6333/"
+QDRANT_URL=""
 FLEX_TARGET="flex"
 FLEX_DOCS_PATH=""
 LOCAL_STAGE_DIR="$HOME/workspace/verify/solution-blueprints/solution-blueprints/DocChat/Docs"
